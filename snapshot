@@ -1,0 +1,72 @@
+#!/bin/bash
+set -e
+
+if (( $EUID != 0 )); then
+    echo "Please run as root"
+    exit
+fi
+
+snap_max_days=1
+device_name=/dev/nvme0n1p5
+
+
+function run_cmd {
+    cmd=$1
+    message=$2
+
+    printf "\e[1;34m%s\e[0m" "$message"
+    if $cmd &> /dev/null; then
+        printf "\e[1;32m%20s\e[0m\n" "[OK]"
+    else
+        printf "\e[1;31m%20s\e[0m\n" "[FAIL]"
+        exit
+    fi
+}
+
+case $1 in
+    pacman)
+        case $2 in
+            install)
+                run_cmd "/usr/bin/btrfs subvolume snapshot / /.snapshots/pacman-install-$(date +%F_%T)" "Creating snapshot /.snapshots/pacman-install-$(date +%F_%T)"
+            ;;
+            remove)
+                run_cmd "/usr/bin/btrfs subvolume snapshot / /.snapshots/pacman-remove-$(date +%F_%T)" "Creating snapshot /.snapshots/pacman-remove-$(date +%F_%T)"
+            ;;
+            upgrade)
+                run_cmd "/usr/bin/btrfs subvolume snapshot / /.snapshots/pacman-upgrade-$(date +%F_%T)" "Creating snapshot /.snapshots/pacman-upgrade-$(date +%F_%T)"
+            ;;
+         esac
+    ;;
+    create)
+        if [[ $2 == 'perm' ]]; then
+            run_cmd "/usr/bin/btrfs subvolume snapshot / /.snapshots/manual-$(date +%F_%T)-perm" "Creating permanent manual snapshot /.snapshots/manual-$(date +%F_%T)-perm"
+        else
+            run_cmd "/usr/bin/btrfs subvolume snapshot / /.snapshots/manual-$(date +%F_%T)" "Creating manual snapshot /.snapshots/manual-$(date +%F_%T) ..."
+        fi
+    ;;
+    rollback)
+        if mount | grep -Eo '[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}:[0-9]{2}:[0-9]{2}$'; then
+            rnd_directory=$RANDOM-btrfs
+            run_cmd "mkdir /mnt/$rnd_directory" "Creating temporary directory /mnt/$rnd_directory"
+            run_cmd "mount $device_name /mnt/$rnd_directory" "Mounting $device_name to /mnt/$rnd_directory"
+             /mnt/$rnd_directory/@ /.snapshots/rollback-$(date +%F_%T)
+            /usr/bin/btrfs subvolume snapshot / /mnt/$rnd_directory/@
+            if umount /mnt/$rnd_directory; then
+                rm -rf /mnt/$rnd_directory
+            fi
+     
+        else
+            echo "You must boot from snapshot firstly and than rollback root partition!"
+        fi
+    ;;
+esac
+
+## Remove old snapshots
+snapshots=$(/usr/bin/btrfs subvol list / | grep -Eo '[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}:[0-9]{2}:[0-9]{2}$')
+for snapshot in $snapshots; do
+    date_diff=$(( ($(date +%s) - $(date -d "${snapshot/_/ }" +%s)) / 3600 / 24 ))
+    if [[ $date_diff > $snap_max_days ]]; then
+        subvol_name=$(find /.snapshots/ -maxdepth 1 -type d -name "*-$snapshot")
+        run_cmd "/usr/bin/btrfs subvolume delete $subvol_name" "Removing old snaphot $subvol_name"
+    fi
+done

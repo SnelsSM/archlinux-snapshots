@@ -1,0 +1,12 @@
+[Trigger]
+Type = Package
+Operation = Install
+Target = *
+
+[Action]
+Description = Making BTRFS snapshot...
+Depends = btrfs-progs
+When = PreTransaction
+Exec = /usr/local/bin/snapshot pacman install
+AbortOnFail
+NeedsTargets

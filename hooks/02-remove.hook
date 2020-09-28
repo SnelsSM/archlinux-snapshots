@@ -1,0 +1,12 @@
+[Trigger]
+Type = Package
+Operation = Remove
+Target = *
+
+[Action]
+Description = Making BTRFS snapshot...
+Depends = btrfs-progs
+When = PreTransaction
+Exec = /usr/local/bin/snapshot pacman remove
+AbortOnFail
+NeedsTargets
