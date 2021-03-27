@@ -45,12 +45,12 @@ case $1 in
         fi
     ;;
     rollback)
-        if mount | grep -Eo '[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}:[0-9]{2}:[0-9]{2}$'; then
+        if mount | grep -Eo '[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}:[0-9]{2}:[0-9]{2})$'; then
             rnd_directory=$RANDOM-btrfs
             run_cmd "mkdir /mnt/$rnd_directory" "Creating temporary directory /mnt/$rnd_directory"
             run_cmd "mount $device_name /mnt/$rnd_directory" "Mounting $device_name to /mnt/$rnd_directory"
-             /mnt/$rnd_directory/@ /.snapshots/rollback-$(date +%F_%T)
-            /usr/bin/btrfs subvolume snapshot / /mnt/$rnd_directory/@
+            run_cmd "/usr/bin/btrfs subvolume snapshot /mnt/$rnd_directory/@ /.snapshots/rollback-$(date +%F_%T)" "Creating rollback snapshot"
+            run_cmd "/usr/bin/btrfs subvolume snapshot / /mnt/$rnd_directory/@" "Restore"
             if umount /mnt/$rnd_directory; then
                 rm -rf /mnt/$rnd_directory
             fi
